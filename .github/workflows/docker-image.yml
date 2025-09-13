@@ -1,0 +1,62 @@
+name: Snake Game Deployment
+on:
+  workflow_dispatch: # manual trigger
+  push:
+    branches:
+      - main
+env:
+   IMAGE_NAME: amankumargupta/snake  
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      # 1) Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2) Log in to Docker Hub
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      # 3) Build and push image
+      - name: Build & Push Docker image
+        run: |
+          docker build -t $IMAGE_NAME:latest .
+          docker push $IMAGE_NAME:latest
+
+      # 4) Run container on GitHub runner
+      - name: Run container
+        run: |
+          docker run -d --name snake-game -p 80:80 $IMAGE_NAME:latest
+          sleep 5   # wait for container to start
+          
+      - name: Validate Deployment
+        id: validate
+        run: |
+          sleep 10
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" http://localhost:80 || true)
+          if [ "$STATUS" = "200" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Send Email Notification
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USERNAME }}
+          password: ${{ secrets.GMAIL_PASSWORD }}
+          subject: Snake Game Deployment - ${{ steps.validate.outputs.status }}
+          to: ${{ secrets.MAIL_TO }}
+          from: ${{ secrets.GMAIL_USERNAME }}
+          body: |
+            Hello,
+            
+            The deployment of Snake Game has completed.
+            Status: ${{ steps.validate.outputs.status }}
+            
+            Regards,
+            GitHub Actions
