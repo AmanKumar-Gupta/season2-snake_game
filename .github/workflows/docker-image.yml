@@ -18,12 +18,14 @@ jobs:
       - name: Login to Docker Hub
         run: echo "${{ secrets.DOCKERHUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
-      # 3) Build and push image
+      # 3) Set up Docker Buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 4) Build & push image
       - name: Build & Push Docker image
         run: |
-          DOCKER_BUILDKIT=1 docker build -t $IMAGE_NAME:latest .
-          docker push $IMAGE_NAME:latest
-
+         docker buildx build --push --tag $IMAGE_NAME:latest .
       # 4) Run container on GitHub runner
       - name: Run container
         run: |
